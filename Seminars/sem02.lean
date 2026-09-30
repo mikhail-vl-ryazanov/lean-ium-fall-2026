@@ -226,27 +226,152 @@ example : ¬(p ∧ ¬q) → (p → q) := sorry
 
 section hw
   /- Classical.em is not required: -/
-  example : (p ∧ q) ∧ r ↔ p ∧ (q ∧ r) := sorry
-  example : (p ∨ q) ∨ r ↔ p ∨ (q ∨ r) := sorry
-  example : p ∨ (q ∧ r) ↔ (p ∨ q) ∧ (p ∨ r) := sorry
-  example : (p → (q → r)) ↔ (p ∧ q → r) := sorry
-  example : ((p ∨ q) → r) ↔ (p → r) ∧ (q → r) := sorry
-  example : ¬(p ∨ q) ↔ ¬p ∧ ¬q := sorry
-  example : ¬p ∨ ¬q → ¬(p ∧ q) := sorry
-  example : ¬(p ∧ ¬p) := sorry
-  example : p ∧ ¬q → ¬(p → q) := sorry
-  example : ¬p → (p → q) := sorry
-  example : (¬p ∨ q) → (p → q) := sorry
-  example : p ∨ False ↔ p := sorry
-  example : p ∧ False ↔ False := sorry
-  example : (p → q) → (¬q → ¬p) := sorry
+  example : (p ∧ q) ∧ r ↔ p ∧ (q ∧ r) :=
+  Iff.intro
+    (λ h : (p ∧ q) ∧ r ↦
+      And.intro h.left.left (And.intro h.left.right h.right)
+    )
+    (λ h :  p ∧ (q ∧ r) ↦
+      And.intro (And.intro h.left h.right.left) h.right.right
+    )
+
+  example : (p ∨ q) ∨ r ↔ p ∨ (q ∨ r) :=
+  Iff.intro
+    (λ h : (p ∨ q) ∨ r ↦
+        Or.elim h
+        (λ hpq : p ∨ q ↦
+          Or.elim hpq (λ hp : p ↦ Or.inl hp) (λ hq : q ↦ Or.inr (Or.inl hq)))
+        (λ hr : r ↦ Or.inr (Or.inr hr))
+    )
+    (λ h : p ∨ (q ∨ r) ↦
+        Or.elim h
+        (λ hp : p ↦ Or.inl (Or.inl hp))
+        (λ hqr : q ∨ r ↦
+          Or.elim hqr (λ hq : q ↦ Or.inl (Or.inr hq)) (λ hr : r ↦ Or.inr hr))
+    )
+
+  example : p ∨ (q ∧ r) ↔ (p ∨ q) ∧ (p ∨ r) :=
+  Iff.intro
+    (λ h : p ∨ (q ∧ r) ↦
+        Or.elim h
+        (λ hp : p ↦ And.intro (Or.inl hp) (Or.inl hp))
+        (λ hqr : q ∧ r ↦ And.intro (Or.inr hqr.left) (Or.inr hqr.right))
+    )
+    (λ h : (p ∨ q) ∧ (p ∨ r) ↦
+        Or.elim h.left
+          (λ hp : p ↦ Or.inl hp)
+          (λ hq : q ↦ Or.elim h.right
+            (λ hp : p ↦ Or.inl hp)
+            (λ hr : r ↦ Or.inr (And.intro hq hr))
+          )
+    )
+
+  example : (p → (q → r)) ↔ (p ∧ q → r) :=
+  Iff.intro
+    (λ (h : (p → (q → r))) (hpq : (p ∧ q)) ↦ h hpq.left hpq.right)
+    (λ (h : (p ∧ q → r)) (hp : p) (hq : q) ↦ h (And.intro hp hq))
+
+  example : ((p ∨ q) → r) ↔ (p → r) ∧ (q → r) :=
+  Iff.intro
+    (λ (h : (p ∨ q) → r) ↦
+      And.intro (λ hp : p ↦ h (Or.inl hp)) (λ hq : q ↦ h (Or.inr hq))
+    )
+    (λ (h : ((p → r) ∧ (q → r))) (hpq : (p ∨ q)) ↦
+      Or.elim hpq (λ hp : p ↦ h.left hp) (λ hq : q ↦ h.right hq)
+    )
+
+  example : ¬p ∨ ¬q → ¬(p ∧ q) :=
+    λ h : (¬p ∨ ¬q) ↦
+      λ hpq : (p ∧ q) ↦
+        Or.elim h
+          (λ hnp : ¬ p ↦ hnp hpq.left)
+          (λ hnq : ¬ q ↦ hnq hpq.right)
+
+  example : ¬(p ∧ ¬p) :=
+    λ h : (p ∧ ¬p) ↦ h.right h.left
+
+  example : p ∧ ¬q → ¬(p → q) :=
+    λ h : (p ∧ ¬q) ↦
+      λ h_imp : (p → q) ↦ h.right (h_imp h.left)
+
+  example : ¬p → (p → q) :=
+    λ hnp : (¬p) ↦
+      λ hp : p ↦ False.elim (hnp hp)
+
+  example : (¬p ∨ q) → (p → q) :=
+    λ h : (¬p ∨ q) ↦
+    λ hp : p ↦
+    Or.elim h
+      (λ hnp : ¬p ↦ False.elim (hnp hp))
+      (λ hq : q ↦ hq)
+
+
+  example : p ∨ False ↔ p :=
+    Iff.intro
+      (λ h : (p ∨ False) ↦
+        Or.elim h
+          (λ hp : p ↦ hp)
+          (λ hf : False ↦ False.elim hf)
+      )
+      (λ hp : p ↦ Or.inl hp)
+
+  example : p ∧ False ↔ False :=
+    Iff.intro
+      (λ h : (p ∧ False) ↦ h.right)
+      (λ hf : False ↦ False.elim hf)
+
+  example : (p → q) → (¬q → ¬p) :=
+    λ h : (p → q) ↦
+      λ hnq : ¬q ↦
+        λ hp : p ↦ hnq (h hp)
 
   /- Classical.em is required: -/
-  example : (p → q ∨ r) → ((p → q) ∨ (p → r)) := sorry
-  example : ¬(p ∧ q) → ¬p ∨ ¬q := sorry
-  example : ¬(p → q) → p ∧ ¬q := sorry
-  example : (p → q) → (¬p ∨ q) := sorry
-  example : (¬q → ¬p) → (p → q) := sorry
-  example : p ∨ ¬p := sorry
-  example : (((p → q) → p) → p) := sorry
+  example : (p → q ∨ r) → ((p → q) ∨ (p → r)) :=
+    λ h : (p → q ∨ r) ↦ Or.elim (Classical.em p)
+      (λ hp : p ↦
+        Or.elim (h hp)
+        (λ hq : q ↦ Or.inl (λ hpp : p ↦ hq))
+        (λ hr : r ↦ Or.inr (λ hpp : p ↦ hr))
+      )
+      (λ hnp : ¬p ↦
+        Or.inl (λ hpp : p ↦ False.elim (hnp hpp))
+      )
+
+  example : ¬(p ∧ q) → ¬p ∨ ¬q :=
+    λ h : ¬(p ∧ q) ↦ Or.elim (Classical.em p)
+      (λ hp : p ↦ Or.inr (λ hq : q ↦ h ⟨hp, hq⟩ ))
+      (λ hnp : ¬p ↦ Or.inl (hnp))
+
+  example : ¬(p → q) → p ∧ ¬q :=
+    λ h : ¬(p → q) ↦ Or.elim (Classical.em p)
+      (λ hp : p ↦
+        have hnq : ¬q := λ hq : q ↦ h (λ hpp : p ↦ hq)
+        And.intro hp hnq
+      )
+      (λ hnp : ¬p ↦
+        have h_imp : p → q := λ hp : p ↦ False.elim (hnp hp)
+        False.elim (h h_imp)
+      )
+
+  example : (p → q) → (¬p ∨ q) :=
+    λ h : (p → q) ↦ Or.elim (Classical.em p)
+    (λ hp : p ↦ Or.inr (h hp))
+    (λ hnp : ¬p ↦ Or.inl hnp)
+
+  example : (¬q → ¬p) → (p → q) :=
+    λ (h : (¬q → ¬p)) (hp : p) ↦ Or.elim (Classical.em q)
+      (λ hq : q ↦ hq)
+      (λ hnq : ¬q ↦ False.elim (h hnq hp))
+
+  example : p ∨ ¬p :=
+    Or.elim (Classical.em p)
+      (λ hp : p ↦ Or.inl hp)
+      (λ hnp : ¬p ↦ Or.inr hnp)
+
+  example : (((p → q) → p) → p) :=
+    λ h : (((p → q) → p)) ↦ Or.elim (Classical.em p)
+      (λ hp : p ↦ hp)
+      (λ hnp : ¬p ↦ h (λ hp : p ↦ False.elim (hnp hp)))
+
+
 end hw
