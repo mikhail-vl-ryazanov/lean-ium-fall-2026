@@ -235,31 +235,106 @@ example (x : α) (h : p) : x = x ∧ p := by
 -/
 section hw
   example : ∀ p q : Prop, p ∧ q ↔ ∀ r : Prop, (p → q → r) → r :=
-    sorry
+    λ p q ↦ Iff.intro
+      (λ ⟨hp, hq⟩ r h ↦ h hp hq)
+      (λ h ↦ And.intro (h p (λ hp _ ↦ hp)) (h q (λ _ hq ↦ hq)))
+
+  example : ∀ p q : Prop, p ∧ q ↔ ∀ r : Prop, (p → q → r) → r :=  by
+    intro p q
+    constructor
+    · intro ⟨hp, hq⟩  r h
+      apply h hp
+      exact hq
+    · intro h
+      constructor
+      · apply h p
+        intro hp hq
+        exact hp
+      · apply h q
+        intro hp hq
+        exact hq
+
 
   example : ∀ p q : Prop, p ∨ q ↔ ∀ r : Prop, (p → r) → (q → r) → r :=
-    sorry
+    λ p q ↦ Iff.intro
+      (λ hpq r hpr hqr ↦
+        Or.elim hpq
+          (λ hp ↦ hpr hp)
+          (λ hq ↦ hqr hq)
+      )
+      (λ h ↦ h (p ∨ q)
+        (λ hp ↦ Or.inl hp)
+        (λ hq ↦ Or.inr hq)
+      )
+
+  example : ∀ p q : Prop, p ∨ q ↔ ∀ r : Prop, (p → r) → (q → r) → r := by
+    intro p q
+    apply Iff.intro
+    · intro hpq r hpr hqr
+      apply Or.elim hpq
+      · exact hpr
+      · exact hqr
+    · intro h
+      apply h
+      · intro hp
+        apply Or.inl hp
+      · intro hq
+        apply Or.inr hq
 
   example : (∃ x : α, P x) ↔ ∀ r : Prop, (∀ x : α, P x → r) → r :=
-    sorry
+    Iff.intro
+      (λ ⟨x, hP⟩ r hpr ↦ (hpr x hP))
+      (λ h ↦ h (∃ x : α, P x) (λ x hx ↦ ⟨x, hx⟩ ) )
+
+  example : (∃ x : α, P x) ↔ ∀ r : Prop, (∀ x : α, P x → r) → r := by
+    apply Iff.intro
+    · intro ⟨x, hP⟩ r hpr
+      apply hpr x hP
+    · intro h
+      apply h (∃ x : α, P x)
+      intro x hx
+      exact ⟨x, hx⟩
+
 
   theorem knaster_tarski
-    (R : α → α → Prop)
-    (trans : ∀ x y z : α, R x y → R y z → R x z)
-    (inf : ∀ P : α → Prop, ∃ m : α,
-      (∀ x : α, P x → R m x) ∧
-      (∀ z : α, (∀ x : α, P x → R z x) → R z m))
-    (f : α → α)
-    (mono : ∀ x y : α, R x y → R (f x) (f y)) :
-    ∃ p : α, R (f p) p ∧ R p (f p) := sorry
+    (R : α → α → Prop) -- partial order relation
+    (trans : ∀ x y z : α, R x y → R y z → R x z) -- transitivity
+    (inf : ∀ P : α → Prop, -- subset definiton
+      ∃ m : α,  -- existing of infimum
+      (∀ x : α, P x → R m x) ∧ --lower_bound
+      (∀ z : α, (∀ x : α, P x → R z x) → R z m)) --greatest_lower_bound
+    (f : α → α) -- function on lattice
+    (mono : ∀ x y : α, R x y → R (f x) (f y)) : -- monotonic function
+    ∃ p : α, R (f p) p ∧ R p (f p) := by -- existing of fixed point
+      let E := λ (x : α) ↦ R (f x) x -- set of x : f(x) ≤ x
+      rcases inf E with ⟨m, ⟨lower_bound, greatest_lower_bound ⟩⟩ -- let m = inf E
+      have h1 : R (f m) m := by -- show f(m) ≤ m
+        apply greatest_lower_bound -- ∀ z : (∀ x ∈ E => z ≤ x) => z ≤ m
+        intro x hx -- let x ∈ E i.e. f(x) ≤ x
+        have hm_x := lower_bound x hx -- m ≤ x
+        have hf_mono := mono m x hm_x -- f(m) ≤ f(x)
+        exact trans (f m) (f x) x hf_mono hx -- f(m) ≤ f(x) => f(m) ≤ x => f(m) ≤ m
+      have h2 : R m (f m) := by -- show m ≤ f(m)
+        have h_fm_in_E : E (f m) := mono (f m) m h1 -- f(m) ∈ E
+        exact lower_bound (f m) h_fm_in_E -- m ≤ f(m)
+      exact ⟨m, ⟨h1, h2⟩⟩ -- (f(m) ≤ m) ∧ (m ≤ f(m)) => m = f(m)
+
 
   /-- Explain what this theorem means --/
   theorem girard
+  -- конструкция, которая позволяет совпасть
+  -- типу "функция из типа в тип" и типу аргумента
     (π : (Type → Type) → Type)
+  -- это абстракция, которая, например, позволит ввести функцию (λx.xx)
     (Λ : ∀ {X : Type → Type}, ((α : Type) → X α) → π X)
+  -- это применение (вычисление), которое, например,
+  -- позволит применить функцию к себе (λx.xx)(λx.xx)
     (ε : ∀ {X : Type → Type}, π X → (α : Type) → X α)
+  -- это β-редукция, которая, в результате, приведет к зацикливанию,
+  -- то еcть выдаст False
     (β : ∀ {X : Type → Type} (f : (α : Type) → X α) (α : Type),
       ∀ (P : X α → Prop), P (ε (Λ f) α) ↔ P (f α))
     : False :=
+
     sorry
 end hw
