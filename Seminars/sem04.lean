@@ -259,13 +259,20 @@ section hw
   /- Define the type of propositional formulas:
     if φ and ψ are formulas, so are φ → ψ -/
   inductive Form : Type where
+    | var : Var → Form
+    | impl : Form → Form → Form
 
   /- Define a boolean evaluation of a formula -/
-  def eval (v : Var → Bool) (φ : Form) : Bool := sorry
-
+  def eval (v : Var → Bool) (φ : Form) : Bool :=
+    match φ with
+    | Form.var x => v x
+    | Form.impl ψ η => !(eval v ψ) || (eval v η)
 
   /- Define an interpretation of a formula as Prop -/
-  def interp (v : Var → Prop) (φ : Form) : Prop := sorry
+  def interp (v : Var → Prop) (φ : Form) : Prop :=
+    match φ with
+    | Form.var x => v x
+    | Form.impl ψ η => (interp v ψ) → (interp v η)
 
   /- If every interpretation of a formula is provable,
     than formula is tautological -/
