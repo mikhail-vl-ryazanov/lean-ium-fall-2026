@@ -279,7 +279,28 @@ section hw
   theorem correct (φ : Form) :
     (∀ (v : Var → Prop), interp v φ) →
     (∀ (v : Var → Bool), eval v φ = true) := by
-    sorry
+    -- Вводим гипотезу H (что φ истинна для всех интерпретаций в Prop) и переменную v (булево означивание)
+      intro H v
+      -- Специализируем общую гипотезу H для конкретной интерпретации: «переменная истинна в Prop, если v x равно true»
+      have H_spec := H (λ x ↦ v x = true)
+      -- Теперь нам нужно связать `interp` на этой специальной интерпретации с `eval v φ = true`
+      -- Для этого докажем по индукции, что `interp (fun x  ↦  v x = true) φ ↔ (eval v φ = true)`
+      have lemma_equiv (ρ : Form) : interp (λ x  ↦ v x = true) ρ ↔ (eval v ρ = true) := by
+        induction ρ with
+        | var x =>
+          -- Базовый случай для переменных тривиален из определения
+          rfl
+        | impl ψ η ihψ ihη =>
+          -- Шаг индукции для импликации
+          simp [interp]
+          simp [eval]
+          rw [ihψ]
+          rw [ihη]
+          -- Сводим импликацию в Prop к операциям над Bool
+          cases eval v ψ <;> cases eval v η <;> simp
+      -- Применяем эквивалентность к нашей специализированной гипотезе
+      rw [lemma_equiv] at H_spec
+      exact H_spec
 
   /- Prove the other direction in classical logic -/
   theorem complete
@@ -288,5 +309,25 @@ section hw
     (h : ∀ p : Prop, p ↔ decide p = true) :
       (∀ (v : Var → Bool), eval v φ = true) →
       (∀ (v : Var → Prop), interp v φ) := by
-    sorry
+      -- Вводим гипотезу H (о том, что формула — тавтология в Bool) и интерпретацию v в Prop
+      intro H v
+      -- Специализируем булеву гипотезу H для означивания, полученного через функцию decide
+      have H_spec := H (λ x ↦ decide (v x))
+      -- Доказываем по индукции, что для любой подформулы ρ её интерпретация эквивалентна её вычислению в Bool
+      have lemma_equiv (ρ : Form) : interp v ρ ↔ (eval (λ x ↦ decide (v x)) ρ = true) := by
+        induction ρ with
+        | var x =>
+          -- Базовый случай следует напрямую из свойства функции decide (гипотеза h)
+          exact h (v x)
+        | impl ψ η ihψ ihη =>
+          -- Шаг индукции для импликации
+          simp [interp]
+          simp [eval]
+          rw [ihψ]
+          rw [ihη]
+          -- Сводим импликацию в Prop к операциям над Bool
+          cases eval (fun x => decide (v x)) ψ <;> cases eval (fun x => decide (v x)) η <;> simp
+      -- Применяем доказанную эквивалентность, чтобы завершить теорему
+      rw [lemma_equiv]
+      exact H_spec
 end hw
