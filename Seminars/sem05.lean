@@ -32,11 +32,11 @@ theorem Eq'.symm {α : Type} {a b : α} (h : Eq' a b) : Eq' b a :=
   Eq'.rec Eq'.refl h
 
 theorem Eq'.trans {α : Type} {a b c : α} (h₁ : Eq' a b) (h₂ : Eq' b c) : Eq' a c :=
-  sorry
+  Eq'.rec h₁ h₂
 
 theorem Eq'.congrArg {α β : Type} {a₁ a₂ : α}
     (f : α → β) (h : Eq' a₁ a₂) : Eq' (f a₁) (f a₂) :=
-  sorry
+  Eq'.rec refl h
 
 #print Eq
 #check rfl
@@ -45,7 +45,13 @@ theorem Eq'.congrArg {α β : Type} {a₁ a₂ : α}
 
 example : 2 + 2 = 4 := rfl
 example (n : Nat) : n + 0 = n := rfl
--- example (n : Nat) : 0 + n = n := rfl
+theorem foo : (n : Nat) : 0 + n = n :=
+  match n with
+  | Nat.zero => rfl
+  | Nat.succ =>
+    have h: 0 + m = m := foo m
+    congrArg Nat.succ h
+
 
 /- rw -/
 
@@ -226,15 +232,35 @@ end induction
 -/
 section hw
   -- Define sumTo n k := 1 + ... + n
-  def sumTo (n : Nat) : Nat := sorry
+  def sumTo (n : Nat) : Nat :=
+  match n with
+  | Nat.zero => 0
+  | Nat.succ m => sumTo m + n
 
   theorem gauss :
       ∀ n : Nat, 2 * sumTo n = n * (n + 1) := by
-    sorry
+    intro n
+    induction n with
+    | zero => rfl
+    | succ m hm =>
+        have h1 (m : Nat) : 2 * m + 2 * 1 = m + m + 1 + 1 := by rw [Nat.two_mul]
+        have h2 (m : Nat) : (m + 1) * 1 = m + 1 := by rw [Nat.mul_one]
+        have h3 (m : Nat) : m + m + 1 + 1 = (m + 1) + (m + 1) := by rw [Nat.add_add_add_comm]
+        dsimp [sumTo]
+        rw [Nat.left_distrib, Nat.left_distrib, ← Nat.add_assoc]
+        rw [Nat.left_distrib, Nat.left_distrib, Nat.add_assoc]
+        rw [hm]
+        rw [Nat.mul_comm]
+        rw [h1, h2, h3]
+        rw [← Nat.add_assoc]
 
   theorem exp_growth :
       ∀ k : Nat, ∃ N : Nat, ∀ n : Nat, N ≤ n → n^k ≤ 2^n := by
     sorry
+
+
+
+
 
   -- Might be useful:
   #check Nat.mul_mod_right
