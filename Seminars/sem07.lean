@@ -242,13 +242,41 @@ Additional axioms:
 section hw
   noncomputable example {f : α → β} (hf : Function.Surjective f) :
       {g : β → α // Function.RightInverse g f} := by
-    sorry
+  -- Определение сюръективности: для каждого y есть х, такой что f x = y
+  -- hf : ∀ y : β, ∃ x : α, f x = y
+
+  -- Используем классическую аксиому выбора, чтобы задать функцию g
+    let g := fun y => Classical.choose (hf y)
+
+  -- Помещаем g в зависимую пару (Subtype) вместе с доказательством его свойства
+    refine ⟨g, ?_⟩
+
+  -- Теперь нужно доказать, что g является правым обратным для f, то есть: ∀ y, f (g y) = y
+    intro y
+    dsimp [g]
+  -- Classical.choose_spec извлекает свойство выбранного элемента
+    exact Classical.choose_spec (hf y)
 
   def choice_from_surjective_right_inverse {α : Type}
       (h : ∀ {α β : Type}  {f : α → β}, Function.Surjective f →
           {g : β → α // Function.RightInverse g f}) :
       Nonempty α → α := by
-    sorry
+    intro h_nonempty
+    -- Строим постоянную функцию из α в единичный тип PUnit
+    let f : α → PUnit := fun _ => PUnit.unit
+
+    -- Доказываем, что f суръективна, так как в PUnit всего один элемент
+    have f_surj : Function.Surjective f := by
+      intro x
+      cases x
+      -- Нам нужен хотя бы один элемент из α, берем его из h_nonempty
+      exact h_nonempty.elim (fun a => ⟨a, rfl⟩)
+
+    -- Применяем гипотезу h к нашей функции f
+    let ⟨g, _⟩ := h f_surj
+
+    -- g имеет тип PUnit → α. Вызываем её на единственном элементе PUnit.unit
+    exact g PUnit.unit
 
   /--
   info: 'choice_from_surjective_right_inverse' does not depend on any axioms
@@ -256,9 +284,19 @@ section hw
   #guard_msgs in
   #print axioms choice_from_surjective_right_inverse
 
-
+/--
+Есть список: [true, false, true, true].
+1. Мы можем представить его как u ++ false :: true :: v, где:
+	• u = [true]
+	• v = [true]
+2. Правило cancel позволяет убрать false :: true из середины.
+3. Результатом шага (u ++ v) будет список: [true, true].
+Таким образом, утверждение step [true, false, true, true] [true, true] будет истинным.
+-/
   inductive step : List Bool → List Bool → Prop where
   | cancel (u v : List Bool) : step (u ++ false :: true :: v) (u ++ v)
+
+#check step ([true] ++ false :: true :: [true]) ([true] ++ [true])
 
   def B : Type := Quot step
 
@@ -267,23 +305,114 @@ section hw
     ofNat := Quot.mk step []
 
   -- Lift list contactenation to B
-  instance : Mul B where
-    mul := sorry
+-- Вспомогательные леммы: конкатенация уважает отношение step
+theorem step_append_left (w : List Bool) {x y : List Bool} (h : step x y) :
+    step (w ++ x) (w ++ y) := by
+  cases h with
+  | cancel u v =>
+    simpa [List.append_assoc] using step.cancel (w ++ u) v
 
-  example (x y z : B) : x * y * z = x * (y * z) := by
-    sorry
+theorem step_append_right {x y : List Bool} (h : step x y) (w : List Bool) :
+    step (x ++ w) (y ++ w) := by
+  cases h with
+  | cancel u v =>
+    simpa [List.append_assoc] using step.cancel u (v ++ w)
 
-  example (x : B) : x * 1 = x := by
-    sorry
+-- Поднятие конкатенации списков на B
+-- Объявляем экземпляр класса типов Mul (оператор умножения *) для типа B
+instance : Mul B where
+  -- Определяем функцию умножения mul : B → B → B.
+  -- Внешний Quot.lift снимает фактор-множество с первого аргумента (превращая List Bool → (B → B) в B → (B → B))
+  mul := Quot.lift
+    -- 1-й аргумент внешнего Quot.lift: функция, которая по конкретному первому списку l₁ строит функцию умножения на него (типа B → B).
+    -- Внутренний Quot.lift снимает фактор-множество уже со второго аргумента
+    (fun l₁ => Quot.lift
+      -- 1-й аргумент внутреннего Quot.lift: сама операция на обычных списках — склеиваем l₁ и l₂ и упаковываем обратно в класс эквивалентности B
+      (fun l₂ => Quot.mk step (l₁ ++ l₂))
+      -- 2-й аргумент внутреннего Quot.lift: доказательство корректности по второму аргументу.
+      -- Если список b₁ переходит в b₂ за один шаг (h : step b₁ b₂), то классы для (l₁ ++ b₁) и (l₁ ++ b₂) должны быть равны.
+      -- step_append_left доказывает шаг, а Quot.sound превращает этот шаг в равенство (=) в типе B
+      (fun _ _ h => Quot.sound (step_append_left l₁ h)))
+    -- 2-й аргумент внешнего Quot.lift: доказательство корректности по первому аргументу.
+    -- Если список a₁ переходит в a₂ (h : step a₁ a₂), то функции «умножить на a₁ слева» и «умножить на a₂ слева» должны быть равны.
+    -- Входим в режим тактик (by), чтобы Lean сам вывел сложные типы
+    (fun _ _ h => by
+      -- Тактика функциональной экстенсиональности: чтобы доказать равенство двух функций (f = g),
+      -- достаточно взять произвольный входной элемент q : B и доказать равенство их результатов (f q = g q)
+      funext q
+      -- Тактика индукции по фактор-множеству: заменяем абстрактный элемент q : B на его конкретного представителя Quot.mk step l₂
+      induction q using Quot.ind with
+      -- Разбираем единственный случай представителя l₂ : List Bool.
+      -- Теперь цель упростилась до: Quot.mk step (a₁ ++ l₂) = Quot.mk step (a₂ ++ l₂).
+      -- Закрываем цель: step_append_right доказывает переход по step, а Quot.sound превращает его в равенство
+      | _ l₂ => exact Quot.sound (step_append_right h l₂))
 
-  example (x : B) : 1 * x = x := by
-    sorry
+
+example (x y z : B) : x * y * z = x * (y * z) := by
+  -- Применяем принцип индукции Quot.ind к первому элементу x.
+  -- Тактика заменяет абстрактный элемент x : B на класс эквивалентности некоторого списка
+  induction x using Quot.ind with
+  -- Разбираем единственный случай (конструктор Quot.mk) и даём внутреннему списку имя `a` (a : List Bool).
+  -- Теперь x заменился на `Quot.mk step a`.
+  -- Цель: Quot.mk step a * y * z = Quot.mk step a * (y * z)
+  | _ a =>
+    -- Применяем индукцию Quot.ind ко второму элементу y
+    induction y using Quot.ind with
+    -- Даём списку-представителю для y имя `b` (b : List Bool).
+    -- Цель: Quot.mk step a * Quot.mk step b * z = Quot.mk step a * (Quot.mk step b * z)
+    | _ b =>
+      -- Применяем индукцию Quot.ind к третьему элементу z
+      induction z using Quot.ind with
+      -- Даём списку-представителю для z имя `c` (c : List Bool).
+      -- Цель: Quot.mk step a * Quot.mk step b * Quot.mk step c = Quot.mk step a * (Quot.mk step b * Quot.mk step c)
+      | _ c =>
+        -- Тактика `change` заменяет текущую цель на выражение, которое равно ей по определению (definitionally equal).
+        -- Поскольку наше умножение (*) определено через Quot.lift как конкатенация списков (++),
+        -- Lean сам раскрывает умножение классов в склейку обычных списков a, b и c
+        change Quot.mk step ((a ++ b) ++ c) = Quot.mk step (a ++ (b ++ c))
+        -- Тактика `rw` (rewrite) применяет стандартную теорему ассоциативности конкатенации списков `List.append_assoc`
+        -- к левой части равенства, превращая `(a ++ b) ++ c` в `a ++ (b ++ c)`.
+        -- После этого левая и правая части становятся идентичными, и Lean автоматически закрывает цель
+        rw [List.append_assoc]
+
+
+example (x : B) : x * 1 = x := by
+  -- Применяем индукцию по фактор-множеству Quot.ind к элементу x
+  induction x using Quot.ind with
+  -- Распаковываем единственный случай: x = Quot.mk step a, где a : List Bool.
+  -- Цель становится: Quot.mk step a * 1 = Quot.mk step a
+  | _ a =>
+    -- По определению 1 — это `Quot.mk step []`, а умножение (*) — это конкатенация (++).
+    -- С помощью `change` раскрываем левую часть в склейку списка `a` и пустого списка `[]`
+    change Quot.mk step (a ++ []) = Quot.mk step a
+    -- Применяем стандартную лемму `List.append_nil : a ++ [] = a`.
+    -- После переписывания обе части равенства становятся одинаковыми, и цель закрывается
+    rw [List.append_nil]
+
+
+example (x : B) : 1 * x = x := by
+  -- Заменяем абстрактный элемент x : B на класс конкретного списка a
+  induction x using Quot.ind with
+  | _ a =>
+    -- Раскрываем определение единицы (1 = Quot.mk step []) и умножения (*)
+    change Quot.mk step ([] ++ a) = Quot.mk step a
+    -- Применяем лемму `List.nil_append : [] ++ a = a`
+    rw [List.nil_append]
+
+
 
   def L : B := Quot.mk step [false]
   def R : B := Quot.mk step [true]
 
   example : L * R = 1 := by
-    sorry
+    -- По определению:
+    -- L * R  — это Quot.mk step ([false] ++ [true]), то есть Quot.mk step [false, true]
+    -- 1      — это Quot.mk step []
+    -- Приводим цель к виду, точно совпадающему с шаблоном конструктора `step.cancel [] []`
+    change Quot.mk step ([] ++ false :: true :: []) = Quot.mk step ([] ++ [])
+    -- `step.cancel [] []` доказывает, что список [false, true] переходит в [] за один шаг.
+    -- `Quot.sound` превращает этот шаг в равенство классов в типе B
+    exact Quot.sound (step.cancel [] [])
 
   example : R * L ≠ 1 := by
     sorry
